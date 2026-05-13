@@ -1,0 +1,12 @@
+# Ignore sensitive files
+.env
+
+# Node dependencies (reinstalled via npm install)
+node_modules/
+
+# Temporary scratch files
+check.js
+
+# PM2 logs
+pm2/
+*.log
