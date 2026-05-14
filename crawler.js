@@ -136,7 +136,7 @@ class Crawler {
     this.apiKey = opts.apiKey;
     if (this.apiKey) {
       const genAI = new GoogleGenerativeAI(this.apiKey);
-      this.model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      this.model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     }
   }
 
