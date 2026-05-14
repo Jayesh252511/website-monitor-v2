@@ -93,16 +93,21 @@ function isSocialLink(url) {
 }
 
 /**
- * Returns true when the URL is strictly "internal" — i.e., it starts with
- * the configured root URL (including path). This means if your .env says
- * https://site.com/en we won't wander into https://site.com/ (the root).
+ * Returns true when the URL is "internal" — i.e., it belongs to the same
+ * website domain as the root URL.
  * @param {string} url      Absolute URL to test
- * @param {string} rootUrl  Root URL from .env  (e.g. https://site.com/en)
+ * @param {string} rootUrl  Root URL from .env
  */
 function isInternal(url, rootUrl) {
-  // Normalize both to avoid trailing-slash mismatches
-  const base = rootUrl.endsWith("/") ? rootUrl : rootUrl + "/";
-  return url === rootUrl || url.startsWith(base);
+  try {
+    const targetHost = new URL(url).hostname;
+    const rootHost = new URL(rootUrl).hostname;
+
+    // Matches if it's the exact same domain
+    return targetHost === rootHost;
+  } catch {
+    return false;
+  }
 }
 
 /**

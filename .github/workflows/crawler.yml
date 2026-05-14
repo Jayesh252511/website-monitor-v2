@@ -1,0 +1,24 @@
+name: Daily Deep Crawler
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm install
+      - run: node crawl-once.js
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}
+          URLS: ${{ secrets.URLS }}
+          CRAWL_MAX_PAGES: ${{ secrets.CRAWL_MAX_PAGES }}
