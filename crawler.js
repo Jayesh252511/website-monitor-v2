@@ -28,6 +28,7 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const { URL } = require("url");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,13 @@ class Crawler {
     this.maxRetries = opts.maxRetries ?? 2;
     this.timeout    = opts.timeout    ?? 12000;
     this.retryDelay = opts.retryDelay ?? 1500;
+
+    // AI Integration
+    this.apiKey = opts.apiKey;
+    if (this.apiKey) {
+      const genAI = new GoogleGenerativeAI(this.apiKey);
+      this.model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    }
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -240,6 +248,15 @@ class Crawler {
             result.category,
             url,           // the page this broken link was found on
           );
+          
+          // Add Smart AI Analysis if available
+          if (this.model && !brokenLinks.get(linkUrl).aiReason) {
+            brokenLinks.get(linkUrl).aiReason = await this._analyzeErrorWithAI(
+              linkUrl, 
+              result.html, 
+              result.status
+            );
+          }
         }
 
         // Enqueue internal pages that passed validation
@@ -338,7 +355,7 @@ class Crawler {
         const category = this._categorize(status);
         const isBroken = category !== "ok" && category !== "ignore";
 
-        const result = { status, isBroken, category };
+        const result = { status, isBroken, category, html: bodyHtml };
         cache.set(url, result);
         return result;
 
@@ -405,9 +422,46 @@ class Crawler {
     if (typeof status !== "number") return "timeout";
     if (status >= 200 && status < 400) return "ok";
     if (status === 404)               return "not-found";
+    if (status === 403)               return "forbidden";
     if (status >= 500)                return "server-error";
-    // 403, 405, 429, 999, etc. — bot protection / rate limiting, not real errors
+    // 405, 429, 999, etc. — bot protection / rate limiting, not real errors
     return "ignore";
+  }
+
+  /**
+   * Uses Gemini AI to provide a human-friendly explanation of why a link is failing.
+   */
+  async _analyzeErrorWithAI(url, html, status) {
+    if (!this.model) return null;
+
+    try {
+      console.log(`    🤖 AI analyzing error: ${url}`);
+      
+      // Clean HTML to save tokens (keep only title and headings/errors)
+      let snippet = "No HTML body available (HEAD request).";
+      if (html && typeof html === "string") {
+        const $ = cheerio.load(html);
+        $("script, style").remove();
+        snippet = $("body").text().replace(/\s+/g, " ").substring(0, 1500);
+      }
+
+      const prompt = `
+        You are a web quality expert. A link is failing with HTTP Status: ${status}.
+        URL: ${url}
+        Page Content Snippet: "${snippet}"
+        
+        Analyze why this link is failing and give a very brief (1-2 sentence) 
+        professional explanation for a business owner. 
+        Focus on whether it is a permission issue, a missing file, or a network timeout.
+        Be concise.
+      `;
+
+      const result = await this.model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (err) {
+      console.error(`    🤖 AI analysis failed: ${err.message}`);
+      return "AI analysis currently unavailable.";
+    }
   }
 
   /**

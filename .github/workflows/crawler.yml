@@ -22,3 +22,4 @@ jobs:
           ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}
           URLS: ${{ secrets.URLS }}
           CRAWL_MAX_PAGES: ${{ secrets.CRAWL_MAX_PAGES }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

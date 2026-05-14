@@ -21,6 +21,7 @@ const nodemailer = require("nodemailer");
 const CATEGORY_LABEL = {
   "not-found":    "404 Not Found",
   "soft-404":     "404 Not Found",
+  "forbidden":    "403 Access Denied",
   "server-error": "Server Error (5xx)",
   "timeout":      "Timeout / Unreachable",
 };
@@ -131,6 +132,12 @@ function buildSiteBlock(report) {
     lines.push(`   Error :`);
     lines.push(`   ${categoryLabel(link.category)}`);
     lines.push("");
+
+    if (link.aiReason) {
+      lines.push(`   🤖 Smart AI Analysis :`);
+      lines.push(`   "${link.aiReason}"`);
+      lines.push("");
+    }
 
     const pageCount = link.foundOnPages.length;
     lines.push(`   Button Found On Pages (${pageCount}):`);

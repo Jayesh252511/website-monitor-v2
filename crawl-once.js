@@ -18,6 +18,7 @@ const crawler = new Crawler({
   maxRetries: 2,
   timeout: 15000,
   retryDelay: 2000,
+  apiKey: process.env.GEMINI_API_KEY,
 });
 
 async function runOnce() {
