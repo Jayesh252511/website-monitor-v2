@@ -27,6 +27,7 @@
 
 const axios = require("axios");
 const cheerio = require("cheerio");
+const { chromium } = require("playwright");
 const { URL } = require("url");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
@@ -42,9 +43,6 @@ const IGNORED_SCHEMES = ["mailto:", "tel:", "javascript:", "ftp:", "data:"];
 const IGNORED_DOMAINS = [
   "facebook.com", "twitter.com", "x.com", "instagram.com",
   "linkedin.com", "youtube.com", "whatsapp.com", "t.me",
-  "riidl.org", "newsletter.somaiya.edu", "blog.somaiya.edu",
-  "giving.somaiya.edu", "alumni.somaiya.edu", "careers.somaiya.edu",
-  "application.somaiya.edu", "somaiya.com"
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -361,48 +359,77 @@ class Crawler {
           bodyHtml = typeof getRes.data === "string" ? getRes.data : null;
         }
 
-        // ── Step 3: Soft 404 check on GET responses ─────────────────────────
-        if (status === 200 && bodyHtml && this._isSoft404(bodyHtml)) {
-          status = 404; // treat as hard 404
-          const result = { status: 404, isBroken: true, category: "soft-404" };
-          cache.set(url, result);
-          return result;
+        // ── Step 4: If still broken, try a Real Browser check (Final Verification) ──
+        let isBroken = status >= 400;
+        let category = this._categorize(status);
+
+        if (status === 403 || status === 0 || status === "TIMEOUT" || status >= 500) {
+          console.log(`    🔍 Verifying with Real Browser: ${url}`);
+          const browserResult = await this._verifyWithBrowser(url);
+          if (browserResult.isSuccess) {
+            status = browserResult.status;
+            isBroken = false;
+            category = "healthy";
+          }
         }
 
-        // ── Step 4: Categorize final status ────────────────────────────────
-        const category = this._categorize(status);
-        const isBroken = category !== "ok" && category !== "ignore";
-
-        const result = { status, isBroken, category, html: bodyHtml };
+        const result = { status, isBroken, category };
         cache.set(url, result);
         return result;
-
       } catch (err) {
         lastError = err;
-
-        // Timeout / network error — retry
-        const isTimeout = err.code === "ECONNABORTED" || err.message?.includes("timeout");
-        const is5xx = err.response?.status >= 500;
-
-        if (isTimeout || is5xx) {
-          attempt++;
-          continue;
-        }
-
-        // Other network error (DNS, connection refused) — don't retry
-        break;
+        attempt++;
       }
     }
 
-    // All retries exhausted
-    const status = lastError?.response?.status ?? "TIMEOUT";
-    const category = typeof status === "number" && status >= 500
-      ? "server-error"
-      : "timeout";
+    // All retries exhausted — final attempt with real browser
+    console.log(`    🔍 Final Browser Check (Post-Retry): ${url}`);
+    const finalCheck = await this._verifyWithBrowser(url);
+    if (finalCheck.isSuccess) {
+      const result = { status: finalCheck.status, isBroken: false, category: "healthy" };
+      cache.set(url, result);
+      return result;
+    }
 
+    const status = lastError?.response?.status ?? "TIMEOUT";
+    const category = this._categorize(status);
     const result = { status, isBroken: true, category };
     cache.set(url, result);
     return result;
+  }
+
+  /**
+   * Final check using a headless browser. 
+   * This handles sites that block simple HTTP requests or require JS.
+   */
+  async _verifyWithBrowser(url) {
+    let browser;
+    try {
+      browser = await chromium.launch({ headless: true });
+      const context = await browser.newContext({
+        userAgent: DEFAULT_USER_AGENT,
+        viewport: { width: 1280, height: 720 }
+      });
+      const page = await context.newPage();
+      
+      // Wait for network idle or timeout
+      const response = await page.goto(url, { 
+        timeout: 20000, 
+        waitUntil: 'domcontentloaded' 
+      });
+      
+      const status = response ? response.status() : 0;
+      // Consider 2xx and 3xx as success in a browser context
+      const isSuccess = status >= 200 && status < 400;
+      
+      return { isSuccess, status };
+    } catch (err) {
+      return { isSuccess: false, status: 'BROWSER_TIMEOUT' };
+    } finally {
+      if (browser) {
+        try { await browser.close(); } catch (e) {}
+      }
+    }
   }
 
   /**
