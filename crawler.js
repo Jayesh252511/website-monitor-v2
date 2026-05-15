@@ -42,6 +42,9 @@ const IGNORED_SCHEMES = ["mailto:", "tel:", "javascript:", "ftp:", "data:"];
 const IGNORED_DOMAINS = [
   "facebook.com", "twitter.com", "x.com", "instagram.com",
   "linkedin.com", "youtube.com", "whatsapp.com", "t.me",
+  "riidl.org", "newsletter.somaiya.edu", "blog.somaiya.edu",
+  "giving.somaiya.edu", "alumni.somaiya.edu", "careers.somaiya.edu",
+  "application.somaiya.edu", "somaiya.com"
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
