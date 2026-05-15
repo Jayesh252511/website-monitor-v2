@@ -237,7 +237,7 @@ class Crawler {
         const internal = isInternal(linkUrl, root);
 
         // Validate the link (uses cache — won't re-request same URL)
-        const result = await this._validateLink(linkUrl, validationCache);
+        const result = await this._validateLink(linkUrl, validationCache, url);
 
         if (result.isBroken) {
           this._recordBroken(
@@ -299,9 +299,10 @@ class Crawler {
    *
    * @param {string} url
    * @param {Map}    cache
+   * @param {string} referer
    * @returns {Promise<{status: number|string, isBroken: boolean, category: string}>}
    */
-  async _validateLink(url, cache) {
+  async _validateLink(url, cache, referer = null) {
     if (cache.has(url)) return cache.get(url);
 
     let attempt = 0;
@@ -319,9 +320,16 @@ class Crawler {
         let bodyHtml = null;
 
         try {
+          const commonHeaders = {
+            "User-Agent": DEFAULT_USER_AGENT,
+            "Referer": referer || url,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+          };
+
           const headRes = await axios.head(url, {
             timeout: this.timeout,
-            headers: { "User-Agent": DEFAULT_USER_AGENT },
+            headers: commonHeaders,
             maxRedirects: 5,
             validateStatus: () => true, // don't throw on 4xx/5xx
           });
@@ -333,9 +341,16 @@ class Crawler {
 
         // ── Step 2: If HEAD returned 405/403, retry with GET ────────────────
         if (status === 405 || status === 403) {
+          const commonHeaders = {
+            "User-Agent": DEFAULT_USER_AGENT,
+            "Referer": referer || url,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+          };
+
           const getRes = await axios.get(url, {
             timeout: this.timeout,
-            headers: { "User-Agent": DEFAULT_USER_AGENT },
+            headers: commonHeaders,
             maxRedirects: 5,
             validateStatus: () => true,
           });
